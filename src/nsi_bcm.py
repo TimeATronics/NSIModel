@@ -157,8 +157,8 @@ class NSI:
             # x2_new = x2 + self.popl.learning_rate * (x1 - x2)
             cell1.setOpinion(round(x1_new, 2))
             cell2.setOpinion(round(x2_new, 2))
-            #cell1.setDelta(self.popl.getNextDelta(cell1))
-            #cell2.setDelta(self.popl.getNextDelta(cell2))
+            cell1.setDelta(self.popl.getNextDelta(cell1))
+            cell2.setDelta(self.popl.getNextDelta(cell2))
 
     def simulate(self, timeSteps) -> None:
         for t in range(timeSteps):
