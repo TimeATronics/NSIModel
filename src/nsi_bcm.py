@@ -56,12 +56,14 @@ class Population:
         for row in range(self.grid_size):
             for col in range(self.grid_size):
                 self.grid[(row, col)] = Agent(self.createOpinion(), [row, col], 
-                                              int(self.createRandomOpinion(-5, 5)),
+                                              self.createRandom(),
                                               self.grid_size,
-                                              self.createRandomOpinion(0, 1))
+                                              self.createRandom())
 
     def getNextOpinion(self, cell) -> int:
-        return cell.getOpinion() + cell.k * (self.getIdealOpinion(cell) - cell.getOpinion())
+        #print(self.getSDOpinion(cell))
+        #print()
+        return round(cell.getOpinion() + cell.k * (round(self.getIdealOpinion(cell), 2) - cell.getOpinion()), 2)
 
     def getMeanOpinion(self, cell) -> float:
         data = []
@@ -69,7 +71,7 @@ class Population:
         for i in range(4):
             data.append(self.grid[neighbors[i]].getOpinion())
         if len(data) == 0: return float('nan')
-        return sum(data) / len(data)
+        return round(sum(data) / len(data), 2)
 
     def getSDOpinion(self, cell) -> int:
         data = []
@@ -80,10 +82,10 @@ class Population:
         mean = sum(data) / len(data)
         squared_deviations = [pow(x - mean, 2) for x in data]
         variance = sum(squared_deviations) / len(data)
-        return pow(variance, 0.5)
+        return round(pow(variance, 0.5), 2)
 
     def getIdealOpinion(self, cell) -> float:
-        return self.getMeanOpinion(cell) + cell.getDelta() * self.getSDOpinion(cell)
+        return round(self.getMeanOpinion(cell) + 0.2 * self.getSDOpinion(cell), 2)
 
     def getAvgDelta(self, cell) -> int:
         data = []
@@ -126,15 +128,21 @@ class Population:
     def createUniformOpinion(self, low=-1, high=1) -> float:
         return round(random.uniform(low, high), 2)
 
+    def createRandom(self) -> float:
+        value = random.random()
+        while value <= 0 or value >= 1:
+            value = random.random()
+        return round(value, 2)
+
     def createRandomOpinion(self, low=-1, high=1) -> float:
         value = random.random() * (high + abs(low)) + low
-        while low >= value or value >= high:
+        while low > value or value > high:
             value = random.random() * (high + abs(low)) + low
         return round(value, 2)
 
 class NSI:
     def __init__(self) -> None:
-        self.popl = Population(20, True, False, False, 0.5, 0.25)
+        self.popl = Population(50, True, False, False, 0.5, 0.25)
     def update(self) -> None:
         pos1, cell1 = random.choice(list(self.popl.grid.items()))
         neighbors = cell1.getNeighbors()
@@ -149,8 +157,8 @@ class NSI:
             # x2_new = x2 + self.popl.learning_rate * (x1 - x2)
             cell1.setOpinion(round(x1_new, 2))
             cell2.setOpinion(round(x2_new, 2))
-            cell1.setDelta(self.popl.getNextDelta(cell1))
-            cell2.setDelta(self.popl.getNextDelta(cell2))
+            #cell1.setDelta(self.popl.getNextDelta(cell1))
+            #cell2.setDelta(self.popl.getNextDelta(cell2))
 
     def simulate(self, timeSteps) -> None:
         for t in range(timeSteps):
@@ -181,3 +189,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+# Using delta as a value between 0 and 1 instead of an integer
