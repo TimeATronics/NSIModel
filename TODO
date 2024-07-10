@@ -1,7 +1,7 @@
 N agents.
 
 Bounded Confidence + :
-Each agent has a position
+Each agent has a position (opinion)
 Each agent knows the mean position and standard deviation of positions
 Each agent has a distinctiveness preference (-2, -1, 0, 1, 2, 3...) (may change after sufficient time)
 
