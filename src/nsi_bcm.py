@@ -3,15 +3,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class Agent:
-    dissenter = False
-    tolerance = 0
-    def __init__(self, opinion, pos, delta, grid_size, k) -> None:
+    def __init__(self, opinion, pos, delta, grid_size,
+                 k, tolerance=0, dissenter=False) -> None:
         self.opinion = opinion
         self.posx = pos[0]
         self.posy = pos[1]
         self.delta = delta
         self.grid_size = grid_size
         self.k = k
+        self.tolerance = tolerance
+        self.dissenter = dissenter
 
     def getNeighbors(self) -> list:
         row, col = self.posx, self.posy
@@ -37,19 +38,25 @@ class Agent:
         self.dissenter = True
     def remDissenter(self) -> None:
         self.dissenter = False
+    def checkDissenter(self) -> bool:
+        return self.dissenter
     def setTolerance(self, tol) -> None:
         self.tolerance = tol
+    def getTolerance(self) -> float:
+        return self.tolerance
 
 class Population:
     grid = {}
     def __init__(self, grid_size=10, Uniform=True,
-                 Beta=False, Random=False, conf=0.5, learn=0.25) -> None:
+                 Beta=False, Random=False, conf=0.5,
+                 learn=0.25, dis_percent=0.01) -> None:
         self.Uniform = Uniform
         self.Beta = Beta
         self.Random = Random
         self.grid_size = grid_size
         self.confidence_threshold = conf
         self.learning_rate = learn
+        self.dis_percent = dis_percent
         self.createPopulation()
 
     def createPopulation(self) -> None:
@@ -58,12 +65,19 @@ class Population:
                 self.grid[(row, col)] = Agent(self.createOpinion(), [row, col], 
                                               self.createRandom(),
                                               self.grid_size,
-                                              self.createRandom())
+                                              self.createRandom(),
+                                              self.createRandomTolerance())
+
+    def setDissenters(self) -> None:
+        totalDissenters = self.dis_percent * self.grid_size * self.grid_size
+        for i in range(totalDissenters):
+            x = random.randint(0, self.grid_size - 1)
+            y = random.randint(0, self.grid_size - 1)
+            self.grid[[x, y]].setDissenter()
 
     def getNextOpinion(self, cell) -> int:
-        #print(self.getSDOpinion(cell))
-        #print()
-        return round(cell.getOpinion() + cell.k * (round(self.getIdealOpinion(cell), 2) - cell.getOpinion()), 2)
+        return round(cell.getOpinion() + cell.k *
+                     (round(self.getIdealOpinion(cell), 2) - cell.getOpinion()), 2)
 
     def getMeanOpinion(self, cell) -> float:
         data = []
@@ -133,6 +147,12 @@ class Population:
         while value <= 0 or value >= 1:
             value = random.random()
         return round(value, 2)
+    
+    def createRandomTolerance(self) -> float:
+        value = random.random()
+        while value <= 0 or value >= 0.15:
+            value = random.random()
+        return round(value, 2)
 
     def createRandomOpinion(self, low=-1, high=1) -> float:
         value = random.random() * (high + abs(low)) + low
@@ -142,7 +162,7 @@ class Population:
 
 class NSI:
     def __init__(self) -> None:
-        self.popl = Population(50, True, False, False, 0.5, 0.25)
+        self.popl = Population(50, False, True, False, 0.5, 0.25)
     def update(self) -> None:
         pos1, cell1 = random.choice(list(self.popl.grid.items()))
         neighbors = cell1.getNeighbors()
@@ -150,15 +170,41 @@ class NSI:
         cell2 = self.popl.grid[pos2]
         x1 = cell1.getOpinion()
         x2 = cell2.getOpinion()
-        if (abs(x1 - x2) < self.popl.confidence_threshold):
-            x1_new = self.popl.getNextOpinion(cell1)
-            x2_new = self.popl.getNextOpinion(cell2)
-            # x1_new = x1 + self.popl.learning_rate * (x2 - x1)
-            # x2_new = x2 + self.popl.learning_rate * (x1 - x2)
-            cell1.setOpinion(round(x1_new, 2))
-            cell2.setOpinion(round(x2_new, 2))
-            cell1.setDelta(self.popl.getNextDelta(cell1))
-            cell2.setDelta(self.popl.getNextDelta(cell2))
+        
+        if not cell1.checkDissenter():
+            if (abs(x1 - x2) < self.popl.confidence_threshold - cell1.tolerance * 2):
+                x1_new = self.popl.getNextOpinion(cell1)
+                x2_new = self.popl.getNextOpinion(cell2)
+                # x1_new = x1 + self.popl.learning_rate * (x2 - x1)
+                # x2_new = x2 + self.popl.learning_rate * (x1 - x2)
+                cell1.setOpinion(round(x1_new, 2))
+                cell2.setOpinion(round(x2_new, 2))
+                cell1.setDelta(self.popl.getNextDelta(cell1))
+                cell2.setDelta(self.popl.getNextDelta(cell2))
+        elif cell1.checkDissenter():
+            if (abs(x1 - x2) < self.popl.confidence_threshold - cell1.tolerance * 2):
+                x1_new = self.popl.getNextOpinion(cell1)
+                x2_new = self.popl.getNextOpinion(cell2)
+                cell1.setOpinion(round(x1_new, 2))
+                cell2.setOpinion(round(x2_new, 2))
+                cell1.setDelta(self.popl.getNextDelta(cell1))
+                cell2.setDelta(self.popl.getNextDelta(cell2))
+            # Negative Influence:
+            elif (abs(x1 - x2) > self.popl.confidence_threshold + cell1.tolerance * 2):
+                if (x1 > x2):
+                    x1_new = (x1 + self.popl.learning_rate * (x1 - x2) * (1 - x1))
+                    x2_new = (x2 + self.popl.learning_rate * (x2 - x1) * x2)
+                    cell1.setOpinion(round(x1_new, 2))
+                    cell2.setOpinion(round(x2_new, 2))
+                    cell1.setDelta(self.popl.getNextDelta(cell1))
+                    cell2.setDelta(self.popl.getNextDelta(cell2))
+                else:
+                    x1_new = (x1 + self.popl.learning_rate * (x1 - x2) * x1)
+                    x2_new = (x2 + self.popl.learning_rate * (x2 - x1) * (1 - x2))
+                    cell1.setOpinion(round(x1_new, 2))
+                    cell2.setOpinion(round(x2_new, 2))
+                    cell1.setDelta(self.popl.getNextDelta(cell1))
+                    cell2.setDelta(self.popl.getNextDelta(cell2))
 
     def simulate(self, timeSteps) -> None:
         for t in range(timeSteps):
@@ -189,6 +235,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
 
 # Using delta as a value between 0 and 1 instead of an integer
